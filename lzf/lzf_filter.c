@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "hdf5.h"
-#include "lzf/lzf.h"
+#include "lzf.h"
 #include "lzf_filter.h"
 
 /* Our own versions of H5Epush_sim, as it changed in 1.8 */
@@ -49,9 +49,10 @@
     (2) The new class should always be used for HDF5 1.8 < 1.8.3
     (3) The old class should be used for HDF5 1.8 >= 1.8.3 only if the
         macro H5_USE_16_API is set
+    (4) The new class should always be used for HDF5 1.10+
 */
 
-#if H5_VERS_MAJOR == 1 && H5_VERS_MINOR == 8 && (H5_VERS_RELEASE < 3 || !H5_USE_16_API)
+#if H5_VERS_MAJOR == 1 && (H5_VERS_MINOR >= 10 || (H5_VERS_MINOR == 8 && (H5_VERS_RELEASE < 3 || !H5_USE_16_API)))
 #define H5PY_H5Z_NEWCLS 1
 #else
 #define H5PY_H5Z_NEWCLS 0   
@@ -63,33 +64,33 @@ size_t lzf_filter(unsigned flags, size_t cd_nelmts,
 
 herr_t lzf_set_local(hid_t dcpl, hid_t type, hid_t space);
 
+const H5Z_class_t H5Z_LZF[1] = {{
+#if H5PY_H5Z_NEWCLS
+     H5Z_CLASS_T_VERS,
+     (H5Z_filter_t)(H5PY_FILTER_LZF),
+     1, 1,
+    "lzf",
+    NULL,
+    (H5Z_set_local_func_t)(lzf_set_local),
+    (H5Z_func_t)(lzf_filter)
+#else
+    (H5Z_filter_t)(H5PY_FILTER_LZF),
+    "lzf",
+    NULL,
+    (H5Z_set_local_func_t)(lzf_set_local),
+    (H5Z_func_t)(lzf_filter)
+#endif
+}};
+
+H5PL_type_t H5PLget_plugin_type(void) {return H5PL_TYPE_FILTER;}
+const void *H5PLget_plugin_info(void) {return H5Z_LZF;}
 
 /* Try to register the filter, passing on the HDF5 return value */
 int register_lzf(void){
 
     int retval;
 
-#if H5PY_H5Z_NEWCLS
-    H5Z_class_t filter_class = {
-        H5Z_CLASS_T_VERS,
-        (H5Z_filter_t)(H5PY_FILTER_LZF),
-        1, 1,
-        "lzf",
-        NULL,
-        (H5Z_set_local_func_t)(lzf_set_local),
-        (H5Z_func_t)(lzf_filter)
-    };
-#else
-    H5Z_class_t filter_class = {
-        (H5Z_filter_t)(H5PY_FILTER_LZF),
-        "lzf",
-        NULL,
-        (H5Z_set_local_func_t)(lzf_set_local),
-        (H5Z_func_t)(lzf_filter)
-    };
-#endif
-
-    retval = H5Zregister(&filter_class);
+    retval = H5Zregister(H5Z_LZF);
     if(retval<0){
         PUSH_ERR("register_lzf", H5E_CANTREGISTER, "Can't register LZF filter");
     }
@@ -174,7 +175,7 @@ size_t lzf_filter(unsigned flags, size_t cd_nelmts,
         */
 
         outbuf_size = (*buf_size);
-        outbuf = malloc(outbuf_size);
+        outbuf = H5allocate_memory(outbuf_size, 0);
 
         if(outbuf == NULL){
             PUSH_ERR("lzf_filter", H5E_CALLBACK, "Can't allocate compression buffer");
@@ -199,7 +200,7 @@ size_t lzf_filter(unsigned flags, size_t cd_nelmts,
         while(!status){
             
             free(outbuf);
-            outbuf = malloc(outbuf_size);
+            outbuf = H5allocate_memory(outbuf_size, 0);
 
             if(outbuf == NULL){
                 PUSH_ERR("lzf_filter", H5E_CALLBACK, "Can't allocate decompression buffer");
@@ -233,7 +234,7 @@ size_t lzf_filter(unsigned flags, size_t cd_nelmts,
 
     if(status != 0){
 
-        free(*buf);
+        H5free_memory(*buf);
         *buf = outbuf;
         *buf_size = outbuf_size;
 
@@ -242,20 +243,9 @@ size_t lzf_filter(unsigned flags, size_t cd_nelmts,
 
     failed:
 
-    free(outbuf);
+    H5free_memory(outbuf);
     return 0;
 
 } /* End filter function */
-
-
-
-
-
-
-
-
-
-
-
 
 

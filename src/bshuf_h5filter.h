@@ -16,8 +16,8 @@
  *  block_size (option slot 0) : integer (optional)
  *      What block size to use (in elements not bytes). Default is 0,
  *      for which bitshuffle will pick a block size with a target of 8kb.
- *  Compression (option slot 1) : 0 or BSHUF_H5_COMPRESS_LZ4
- *      Whether to apply LZ4 compression to the data after bitshuffling.
+ *  Compression (option slot 1) : 0 or BSHUF_H5_COMPRESS_LZ4 or BSHUF_H5_COMPRESS_ZSTD
+ *      Whether to apply LZ4/ZSTD compression to the data after bitshuffling.
  *      This is much faster than applying compression as a second filter
  *      because it is done when the small block of data is already in the
  *      L1 cache.
